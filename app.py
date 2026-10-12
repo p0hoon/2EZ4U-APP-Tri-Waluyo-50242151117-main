@@ -1,4 +1,12 @@
-import time
+# ==============================================================================
+# Proyek: 2EZ4U Food Delivery Desktop App (EC234303)
+# File: app.py (Main Entry Point)
+# ==============================================================================
+
 import tkinter as tk
-from tkinter import messagebox
-from backend.m1_pesanan import ArrayPesanan
+from frontend.ui import AppUI
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = AppUI(root)
+    root.mainloop()

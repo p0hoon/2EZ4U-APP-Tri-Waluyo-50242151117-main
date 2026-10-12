@@ -1,93 +1,147 @@
-import time
-import tkinter as tk
-from tkinter import messagebox
 
-#Array Dinamis
-class ArrayPesanan:
-    def __init__(self):
-        self.cap, self.n = 4, 0
-        self.data = [None] * self.cap
-
-    def _besar(self):
-        baru = [None] * (self.cap * 2)
-        for i in range(self.n):
-            baru[i] = self.data[i]
-        self.data, self.cap = baru,self.cap *2
-
-    def _sisip(self, pos, x):
-        if self.n == self.cap:
-            self._besar()
-        for k in range(self.n, pos, -1):
-            self.data[k] = self.data[k-1]
-        self.data[pos] = x
-        self.n += 1
-
-    def lihat(self, i):
-        return self.data[i]
-    def reguler(self, x):
-        self._sisip(self.n, x)
-    def prioritas(self, x):
-        self._sisip(self.n // 2, x)
-    def vip(self, x):
-        self._sisip(0, x)
-
-    def hapus(self, i):
-        x = self.data[i]
-        for k in range(i, self.n - 1):
-            self.data[k] = self.data[k + 1]
-        self.n -= 1
-        self.data[self.n] = None
-        return x
-
-    def awal(self, k):
-        return [self.data[i] for i in range(min(k, self.n))]
-
-#Singly Linked List
 class Node:
     def __init__(self, data):
         self.data = data
         self.next = None
 
-class LinkedPesanan:
+
+class Array:
+    """Dynamic Array dengan alokasi memori berlipat 2x saat penuh."""
+    def __init__(self, initial_capacity=4):
+        self.capacity = initial_capacity
+        self.size = 0
+        self.data = [None] * self.capacity
+
+    def _resize(self, new_cap):
+        new_data = [None] * new_cap
+        for i in range(self.size):
+            new_data[i] = self.data[i]
+        self.data = new_data
+        self.capacity = new_cap
+
+    def get(self, i):
+        if i < 0 or i >= self.size:
+            raise IndexError("Indeks di luar rentang.")
+        return self.data[i]
+
+    def append(self, v):
+        if self.size == self.capacity:
+            self._resize(self.capacity * 2)
+        self.data[self.size] = v
+        self.size += 1
+
+    def insert(self, i, v):
+        if i < 0 or i > self.size:
+            raise IndexError("Indeks tidak valid.")
+        if self.size == self.capacity:
+            self._resize(self.capacity * 2)
+        for j in range(self.size, i, -1):
+            self.data[j] = self.data[j - 1]
+        self.data[i] = v
+        self.size += 1
+
+    def delete(self, i):
+        if i < 0 or i >= self.size:
+            raise IndexError("Indeks di luar rentang.")
+        val = self.data[i]
+        for j in range(i, self.size - 1):
+            self.data[j] = self.data[j + 1]
+        self.data[self.size - 1] = None
+        self.size -= 1
+        return val
+
+    # Pembungkus aturan bisnis M1
+    def tambah_reguler(self, v):
+        self.append(v)
+
+    def tambah_prioritas(self, v):
+        self.insert(self.size // 2, v)
+
+    def tambah_vip(self, v):
+        self.insert(0, v)
+
+    def __len__(self):
+        return self.size
+
+
+class LinkList:
+    """Singly Linked List dengan penunjuk head dan tail."""
     def __init__(self):
-        self.head = self.tail = None
-        self.n = 0
+        self.head = None
+        self.tail = None
+        self.size = 0
 
-    def tambah(self, data):
-        new_node = Node(data)
-        if not self.head:
-            self.head = new_node
-            self.tail = new_node
-            self.n += 1
+    def get(self, i):
+        if i < 0 or i >= self.size:
+            raise IndexError("Indeks di luar rentang.")
+        curr = self.head
+        for _ in range(i):
+            curr = curr.next
+        return curr.data
+
+    def append(self, v):
+        node = Node(v)
+        if self.head is None:
+            self.head = node
+            self.tail = node
+        else:
+            self.tail.next = node
+            self.tail = node
+        self.size += 1
+
+    def insert(self, i, v):
+        if i < 0 or i > self.size:
+            raise IndexError("Indeks tidak valid.")
+        if i == 0:
+            node = Node(v)
+            node.next = self.head
+            self.head = node
+            if self.tail is None:
+                self.tail = node
+            self.size += 1
             return
-        last = self.head
-        while last.next:
-            last = last.next
-        last.next = new_node
-        self.tail = new_node
-        self.n += 1
-
-    def hapus(self, key):
-        temp = self.head
-        if temp is not None:
-            if temp.data == key:
-                self.head = temp.next
-                temp = None
-                self.n -= 1
-                return
-        while temp is not None:
-            if temp.data == key:
-                break
-            prev = temp
-            temp = temp.next
-        if temp is None:
+        if i == self.size:
+            self.append(v)
             return
-        prev.next = temp.next
-        temp = None
-        self.n -= 1
 
-    def tampilkan(self):
-        current = self.head
-        while current:
-            print(current.data)
-            current = current.next
+        node = Node(v)
+        curr = self.head
+        for _ in range(i - 1):
+            curr = curr.next
+        node.next = curr.next
+        curr.next = node
+        self.size += 1
+
+    def delete(self, i):
+        if i < 0 or i >= self.size:
+            raise IndexError("Indeks di luar rentang.")
+        if i == 0:
+            val = self.head.data
+            self.head = self.head.next
+            self.size -= 1
+            if self.size == 0:
+                self.tail = None
+            return val
+
+        curr = self.head
+        for _ in range(i - 1):
+            curr = curr.next
+        val = curr.next.data
+        curr.next = curr.next.next
+        if i == self.size - 1:
+            self.tail = curr
+        self.size -= 1
+        return val
+
+    # Pembungkus aturan bisnis M1
+    def tambah_reguler(self, v):
+        self.append(v)
+
+    def tambah_prioritas(self, v):
+        self.insert(self.size // 2, v)
+
+    def tambah_vip(self, v):
+        self.insert(0, v)
+
+    def __len__(self):
+        return self.size
