@@ -1,10 +1,4 @@
-# ==============================================================================
-# File: backend/m3_laporan.py
-# Modul M3: Insertion Sort, Merge Sort, Linear Search, & Binary Search
-# ==============================================================================
-
 BATAS_INSERTION = 20000  # Batas aman agar UI tidak membeku pada O(n^2)
-
 
 def _ambil_kunci(item, kunci="oid"):
     """Mengambil nilai atribut perbandingan dari objek Pesanan atau tipe primitif."""
@@ -14,7 +8,6 @@ def _ambil_kunci(item, kunci="oid"):
             return int(val)
         return str(val)
     return item
-
 
 def insertion_sort(larik, kunci="oid"):
     """
@@ -26,7 +19,6 @@ def insertion_sort(larik, kunci="oid"):
     if n > BATAS_INSERTION:
         raise ValueError(f"DITOLAK: batasnya {BATAS_INSERTION:,} baris, pakai merge sort untuk data penuh")
 
-    # Salin larik agar data asli tidak berubah
     arr = [larik[i] for i in range(n)]
     perbandingan = 0
     pemindahan = 0
@@ -38,7 +30,6 @@ def insertion_sort(larik, kunci="oid"):
 
         while j >= 0:
             perbandingan += 1
-            # Pakai > (bukan >=) agar pengurutan STABIL
             if _ambil_kunci(arr[j], kunci) > nilai_kunci:
                 arr[j + 1] = arr[j]
                 pemindahan += 1
@@ -52,19 +43,19 @@ def insertion_sort(larik, kunci="oid"):
     return arr, perbandingan, pemindahan
 
 
-def merge_sort(larik, kunci="oid"):
+def merge_sort(array, kunci="oid"):
     """
-    Merge Sort: Membelah larik menjadi dua lalu menggabungkannya secara stabil (<=).
+    Merge Sort: Membelah array menjadi dua lalu menggabungkannya secara stabil (<=).
     Kompleksitas: O(n log n) di semua kasus.
-    Mengembalikan: (larik_terurut, jumlah_perbandingan, jumlah_pemindahan)
+    Mengembalikan: (array_terurut, jumlah_perbandingan, jumlah_pemindahan)
     """
-    n = len(larik)
+    n = len(array)
     if n <= 1:
-        return [larik[i] for i in range(n)], 0, 0
+        return [array[i] for i in range(n)], 0, 0
 
     mid = n // 2
-    kiri, comp_kiri, move_kiri = merge_sort(larik[:mid], kunci)
-    kanan, comp_kanan, move_kanan = merge_sort(larik[mid:], kunci)
+    kiri, comp_kiri, move_kiri = merge_sort(array[:mid], kunci)
+    kanan, comp_kanan, move_kanan = merge_sort(array[mid:], kunci)
 
     hasil = []
     i = 0
@@ -99,7 +90,7 @@ def merge_sort(larik, kunci="oid"):
     return hasil, perbandingan, pemindahan
 
 
-def linear_search(larik, target):
+def linear_search(array, target):
     """
     Linear Search: Menelusuri satu per satu dari depan tanpa syarat terurut.
     Kompleksitas: O(n).
@@ -108,29 +99,29 @@ def linear_search(larik, target):
     perbandingan = 0
     target_str = str(target)
 
-    for i in range(len(larik)):
+    for i in range(len(array)):
         perbandingan += 1
-        if str(_ambil_kunci(larik[i], "oid")) == target_str:
+        if str(_ambil_kunci(array[i], "oid")) == target_str:
             return i, perbandingan
 
     return -1, perbandingan
 
 
-def binary_search(larik, target):
+def binary_search(array, target):
     """
     Binary Search: Membuang separuh sisa daftar setiap langkah pada data terurut.
     Kompleksitas: O(log n).
     Mengembalikan: (indeks_ditemukan, jumlah_perbandingan)
     """
     lo = 0
-    hi = len(larik) - 1
+    hi = len(array) - 1
     perbandingan = 0
     target_str = str(target)
 
     while lo <= hi:
         mid = (lo + hi) // 2
         perbandingan += 1
-        nilai_tengah = str(_ambil_kunci(larik[mid], "oid"))
+        nilai_tengah = str(_ambil_kunci(array[mid], "oid"))
 
         if nilai_tengah == target_str:
             return mid, perbandingan

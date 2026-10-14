@@ -1,8 +1,3 @@
-# ==============================================================================
-# File: frontend/ui.py
-# Antarmuka Desktop 2EZ4U Food Delivery (Sinkronisasi Penuh M1, M2, & M3)
-# ==============================================================================
-
 import tkinter as tk
 from tkinter import ttk, messagebox
 import time
@@ -15,7 +10,6 @@ from backend.m2_antrean import (
 from backend.m3_laporan import (
     insertion_sort, merge_sort, linear_search, binary_search
 )
-
 
 class AppUI:
     def __init__(self, root):
@@ -213,9 +207,8 @@ class AppUI:
 
         self._isi_tabel_pesanan_list(tree, potongan, nomor_awal=mulai_idx)
 
-    # =========================================================================
-    # MENU DATA: LOAD CSV
-    # =========================================================================
+
+    # DATA: LOAD CSV
     def buka_menu_load(self):
         self._clear_main()
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
@@ -242,9 +235,8 @@ class AppUI:
         )
         self._isi_tabel_m1(tree, "array", 0, 100)
 
-    # =========================================================================
-    # MENU M1: LIHAT, TAMBAH (REGULER/PRIORITAS/VIP), & HAPUS PESANAN
-    # =========================================================================
+   
+    # M1: LIHAT, TAMBAH (REGULER/PRIORITAS/VIP), & HAPUS PESANAN
     def buka_m1_lihat(self, struktur):
         self._clear_main()
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
@@ -459,9 +451,8 @@ class AppUI:
         tk.Button(r, text="HAPUS PESANAN", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=12, command=aksi).pack(side=tk.LEFT)
         self._isi_tabel_m1(tree, struktur, mulai_idx=max(0, self.last_view_idx - 2), batas=50)
 
-    # =========================================================================
-    # MENU M2: STACK & QUEUE (DENGAN DATA LANGSUNG MUNCUL & TERHUBUNG KE M1/M3)
-    # =========================================================================
+    # M2: STACK & QUEUE (DENGAN DATA LANGSUNG MUNCUL & TERHUBUNG KE M1/M3)
+    
     def buka_m2_postfix(self):
         self._clear_main()
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
@@ -617,7 +608,7 @@ class AppUI:
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
         tk.Label(p, text="Queue circular: ambil dari depan dengan memajukan penunjuk", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
-        tk.Label(p, text="Hanya penunjuk front yang maju memakai sisa bagi terhadap kapasitas. Isi larik tidak digeser sama sekali (O(1)).", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
+        tk.Label(p, text="Hanya penunjuk front yang maju memakai sisa bagi terhadap kapasitas. Isi array tidak digeser sama sekali (O(1)).", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
         r = tk.Frame(p, bg="white")
         r.pack(fill=tk.X, pady=5)
@@ -772,9 +763,7 @@ class AppUI:
         btn_redo.config(command=aksi)
         tampilkan_status_awal()
 
-    # =========================================================================
-    # MENU M3: SORT & SEARCH
-    # =========================================================================
+    # M3: SORT & SEARCH
     def buka_m3_sort(self, jenis):
         self._clear_main()
         self._sinkronkan_data_master()
@@ -786,7 +775,7 @@ class AppUI:
         sub = (
             "Setiap elemen digeser mundur sampai menemukan tempatnya. Sederhana, tetapi kerjanya tumbuh kuadratik."
             if jenis == "insertion" else
-            "Larik dibelah dua terus-menerus, lalu potongan yang sudah terurut disatukan kembali."
+            "Array dibelah dua terus-menerus, lalu potongan yang sudah terurut disatukan kembali."
         )
         tk.Label(p, text=judul, font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
         tk.Label(p, text=sub, font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
