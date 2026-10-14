@@ -93,7 +93,7 @@ python app.py          # GUI (Windows: py app.py)
 ## Grafik Sort
 
 <p align="center">
-  <img src="grafik_.svg" width="750" alt="Grafik Pertumbuhan Perbandingan Insertion Sort vs Merge Sort">
+  <img src="grafik_sort.svg" width="750" alt="Grafik Pertumbuhan Perbandingan Insertion Sort vs Merge Sort">
 </p>
 
 
