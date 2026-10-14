@@ -1,3 +1,9 @@
+# ==============================================================================
+# File: backend/m2_antrean.py
+# Logika M2: Stack, Naive Queue, Circular Queue, Kasir Postfix, Undo/Redo
+# Terintegrasi penuh dengan M1 & M3 (Tanpa dict/set/fungsi instan terlarang)
+# ==============================================================================
+
 class Pesanan:
     """Model data pesanan murni tanpa dictionary."""
     def __init__(self, oid, pelanggan, resto="kafe-teknik", menu="roti-bakar",
@@ -14,7 +20,7 @@ class Pesanan:
 
 
 class stack:
-    """Implementasi Stack (LIFO)."""
+    """Implementasi Stack (LIFO) menggunakan list sebagai array primitif."""
     def __init__(self):
         self.items = []
 
@@ -40,7 +46,7 @@ class stack:
 
 
 class QueueNaive:
-    """Antrean Naif: Dequeue mengambil indeks 0 dan menggeser sisa elemen (O(n))."""
+    """Antrean Naif: Dequeue mengambil indeks 0 dan menggeser sisa elemen O(n)."""
     def __init__(self):
         self.items = []
         self.total_geseran = 0
@@ -62,12 +68,16 @@ class QueueNaive:
     def undo_enqueue_pop(self):
         return self.items.pop() if len(self.items) > 0 else None
 
+    def get_slice(self, start=0, limit=50):
+        akhir = min(len(self.items), start + limit)
+        return [self.items[i] for i in range(start, akhir)]
+
     def __len__(self):
         return len(self.items)
 
 
 class QueueCircular:
-    """Antrean Melingkar (Modulo): Operasi Enqueue & Dequeue instan O(1)."""
+    """Antrean Melingkar (Modulo): Enqueue & Dequeue instan O(1)."""
     def __init__(self, capacity=32768):
         self.capacity = capacity
         self.data = [None] * self.capacity
@@ -116,15 +126,24 @@ class QueueCircular:
         self.count -= 1
         return val
 
+    def get_slice(self, start=0, limit=50):
+        """Mengambil potongan elemen antrean mulai dari urutan ke-start."""
+        hasil = []
+        akhir = min(self.count, start + limit)
+        for i in range(start, akhir):
+            idx_fisik = (self.front + i) % self.capacity
+            hasil.append(self.data[idx_fisik])
+        return hasil
+
     def __len__(self):
         return self.count
 
 
-# Alias penamaan
+# Alias sesuai nama kelas di modul
 queue = QueueCircular
 
 
-# --- Bagian Kasir (Infix ke Postfix) ---
+# --- Bagian Kasir (Infix ke Postfix & Evaluasi) ---
 
 def tokenize(expr):
     tokens = []
@@ -218,51 +237,83 @@ def hitung(postfix_tokens):
 
 
 class UndoRedoManager:
-    """Manajer riwayat aksi undo/redo."""
-    def __init__(self, q_naive, q_circular):
+    """Manajer riwayat aksi undo/redo yang menghubungkan M1 dan M2."""
+    def __init__(self, q_naive, q_circular, m1_arr=None, m1_ll=None):
         self.q_naive = q_naive
         self.q_circular = q_circular
+        self.m1_arr = m1_arr
+        self.m1_ll = m1_ll
         self.undo_stack = stack()
         self.redo_stack = stack()
 
-    def catat_aksi(self, tipe, items):
-        self.undo_stack.push((tipe, items))
+    def catat_aksi(self, tipe, items, pos_m1=None):
+        """Aksi baru didorong ke undo; tumpukan redo dikosongkan."""
+        self.undo_stack.push((tipe, items, pos_m1))
         self.redo_stack = stack()
 
     def undo_last(self):
         if self.undo_stack.is_empty():
             return None
         aksi = self.undo_stack.pop()
-        tipe, items = aksi
-        if tipe == "ENQUEUE":
+        tipe, items, pos_m1 = aksi
+
+        if tipe in ("ENQUEUE", "ORDER"):
+            # Kebalikan ENQUEUE / ORDER: keluarkan dari belakang antrean M2 & hapus dari M1
             self.q_naive.undo_enqueue_pop()
             self.q_circular.undo_enqueue_pop()
+            if self.m1_arr is not None and len(self.m1_arr) > 0:
+                idx_hapus = pos_m1 if (pos_m1 is not None and pos_m1 < len(self.m1_arr)) else (len(self.m1_arr) - 1)
+                self.m1_arr.delete(idx_hapus)
+                self.m1_ll.delete(idx_hapus)
         elif tipe == "DEQUEUE":
+            # Kebalikan DEQUEUE: kembalikan seluruh daftar ke DEPAN antrean
             for i in range(len(items) - 1, -1, -1):
+                items[i].status = "ANTRE"
+                items[i].selesai = "-"
                 self.q_naive.undo_dequeue_prepend(items[i])
                 self.q_circular.undo_dequeue_prepend(items[i])
+        elif tipe == "DELETE_M1":
+            # Kebalikan hapus di M1: sisipkan kembali ke indeks semula
+            if self.m1_arr is not None and len(items) > 0:
+                idx_sisip = pos_m1 if pos_m1 is not None else len(self.m1_arr)
+                self.m1_arr.insert(idx_sisip, items[0])
+                self.m1_ll.insert(idx_sisip, items[0])
+
         self.redo_stack.push(aksi)
-        return aksi
+        return (tipe, items)
 
     def redo_last(self):
         if self.redo_stack.is_empty():
             return None
         aksi = self.redo_stack.pop()
-        tipe, items = aksi
-        if tipe == "ENQUEUE":
+        tipe, items, pos_m1 = aksi
+
+        if tipe in ("ENQUEUE", "ORDER"):
             for x in items:
                 self.q_naive.enqueue(x)
                 self.q_circular.enqueue(x)
+                if self.m1_arr is not None:
+                    idx_sisip = pos_m1 if (pos_m1 is not None and pos_m1 <= len(self.m1_arr)) else len(self.m1_arr)
+                    self.m1_arr.insert(idx_sisip, x)
+                    self.m1_ll.insert(idx_sisip, x)
         elif tipe == "DEQUEUE":
             for _ in range(len(items)):
-                self.q_naive.dequeue()
-                self.q_circular.dequeue()
+                x1 = self.q_naive.dequeue()
+                x2 = self.q_circular.dequeue()
+                if x2:
+                    x2.status = "SELESAI"
+                    x2.selesai = "13:00:00"
+        elif tipe == "DELETE_M1":
+            if self.m1_arr is not None and pos_m1 is not None and pos_m1 < len(self.m1_arr):
+                self.m1_arr.delete(pos_m1)
+                self.m1_ll.delete(pos_m1)
+
         self.undo_stack.push(aksi)
-        return aksi
+        return (tipe, items)
 
 
 def baca_csv_pesanan(filepath="data/pesanan.csv", limit=200000):
-    """Membaca seluruh baris CSV (default 200.000 baris) tanpa dict/set."""
+    """Membaca seluruh baris CSV (200.000 baris) tanpa dict/set bawaan."""
     hasil = []
     try:
         with open(filepath, "r", encoding="utf-8") as f:

@@ -1,6 +1,6 @@
 # ==============================================================================
 # File: frontend/ui.py
-# Antarmuka Desktop 2EZ4U Food Delivery (Integrasi Penuh CSV pada M1, M2, & M3)
+# Antarmuka Desktop 2EZ4U Food Delivery (Sinkronisasi Penuh M1, M2, & M3)
 # ==============================================================================
 
 import tkinter as tk
@@ -32,10 +32,13 @@ class AppUI:
         self.ll = LinkList()
         self.q_naive = QueueNaive()
         self.q_circular = QueueCircular(capacity=32768)
-        self.ur_mgr = UndoRedoManager(self.q_naive, self.q_circular)
-        self.next_oid = 200001
+        self.ur_mgr = UndoRedoManager(self.q_naive, self.q_circular, self.arr, self.ll)
 
-        # Muat seluruh data CSV (200.000 baris)
+        self.next_oid = 200001
+        self.last_added_oid = None
+        self.last_view_idx = 0
+
+        # Muat seluruh data CSV awal
         self.muat_data()
 
         # Bangun Layout GUI
@@ -43,20 +46,18 @@ class AppUI:
         self.buka_m1_lihat("array")
 
     def muat_data(self):
-        """Memuat seluruh 200.000 baris data/pesanan.csv ke M1, M2, dan M3."""
+        """Memuat seluruh baris data/pesanan.csv ke M1, M2, dan M3."""
         self.data_master = baca_csv_pesanan("data/pesanan.csv", limit=200000)
         self.cache_oid_terurut = None
         self.arr = Array()
         self.ll = LinkList()
         self.q_naive = QueueNaive()
         self.q_circular = QueueCircular(capacity=32768)
-        self.ur_mgr = UndoRedoManager(self.q_naive, self.q_circular)
+        self.ur_mgr = UndoRedoManager(self.q_naive, self.q_circular, self.arr, self.ll)
 
         for p in self.data_master:
-            # Masukkan seluruh 200.000 baris ke M1 (Array & Linked List O(1) via tail)
             self.arr.append(p)
             self.ll.append(p)
-            # Masukkan pesanan berstatus ANTRE ke M2 Queue
             if p.status == "ANTRE":
                 self.q_naive.enqueue(p)
                 self.q_circular.enqueue(p)
@@ -67,6 +68,13 @@ class AppUI:
                 self.q_circular.enqueue(self.data_master[i])
 
         self.next_oid = len(self.data_master) + 1
+        self.last_added_oid = None
+        self.last_view_idx = 0
+
+    def _sinkronkan_data_master(self):
+        """Menyinkronkan data_master M3 dengan isi Array M1 terkini."""
+        self.data_master = self.arr.data[:self.arr.size]
+        self.cache_oid_terurut = None
 
     def _init_layout(self):
         # 1. Header Atas
@@ -165,36 +173,45 @@ class AppUI:
         scr.pack(side=tk.RIGHT, fill=tk.Y)
         return tree
 
-    def _isi_tabel_m1(self, tree, struktur, mulai_idx=0, batas=50):
-        """Menampilkan cuplikan baris CSV dari Array atau Linked List ke tabel."""
+    def _isi_tabel_pesanan_list(self, tree, daftar_pesanan, nomor_awal=1):
+        """Mengisi tabel Treeview dari list objek Pesanan."""
         for row in tree.get_children():
             tree.delete(row)
+        for idx, it in enumerate(daftar_pesanan, nomor_awal):
+            if it is None:
+                continue
+            hrg_str = f"{it.harga:,}".replace(",", ".")
+            tree.insert("", tk.END, values=(idx, it.oid, it.pelanggan, it.resto, it.menu, hrg_str, it.prioritas, it.masuk, it.status))
 
+    def _isi_tabel_m1(self, tree, struktur, mulai_idx=0, batas=50):
+        """Menampilkan potongan baris dari Array atau Linked List M1 ke tabel."""
         target = self.arr if struktur == "array" else self.ll
         total = len(target)
         if total == 0:
+            for row in tree.get_children():
+                tree.delete(row)
             return
 
         mulai_idx = max(0, min(mulai_idx, total - 1))
         akhir_idx = min(total, mulai_idx + batas)
+        potongan = []
 
         if struktur == "array":
             for i in range(mulai_idx, akhir_idx):
-                it = self.arr.get(i)
-                tree.insert("", tk.END, values=(i, it.oid, it.pelanggan, it.resto, it.menu, f"{it.harga:,}".replace(",", "."), it.prioritas, it.masuk, it.status))
+                potongan.append(self.arr.get(i))
         else:
-            # Telusuri sekali ke mulai_idx lalu lanjutkan pointer next agar cepat
             curr = self.ll.head
             for _ in range(mulai_idx):
                 if curr is None:
                     break
                 curr = curr.next
-            for i in range(mulai_idx, akhir_idx):
+            for _ in range(mulai_idx, akhir_idx):
                 if curr is None:
                     break
-                it = curr.data
-                tree.insert("", tk.END, values=(i, it.oid, it.pelanggan, it.resto, it.menu, f"{it.harga:,}".replace(",", "."), it.prioritas, it.masuk, it.status))
+                potongan.append(curr.data)
                 curr = curr.next
+
+        self._isi_tabel_pesanan_list(tree, potongan, nomor_awal=mulai_idx)
 
     # =========================================================================
     # MENU DATA: LOAD CSV
@@ -204,22 +221,25 @@ class AppUI:
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
 
-        tk.Label(p, text="Data: Muat Ulang Dataset CSV (pesanan.csv)", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
+        tk.Label(p, text="Data: Status & Muat Ulang Dataset CSV (pesanan.csv)", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
         lbl = tk.Label(p, text="", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
         lbl.pack(anchor="w", pady=4)
 
-        tree = self._create_table(p)
-
-        def aksi_load():
+        def aksi_reset():
             t0 = time.perf_counter()
             self.muat_data()
             ms = (time.perf_counter() - t0) * 1000
-            lbl.config(text=f"Berhasil memuat {len(self.data_master):,} baris dari data/pesanan.csv.\nArray: {len(self.arr):,} | Linked List: {len(self.ll):,} | Queue ANTRE: {len(self.q_circular):,}".replace(",", "."))
+            lbl.config(text=f"Dataset di-reset ulang dari data/pesanan.csv: {len(self.data_master):,} baris.\nArray M1: {len(self.arr):,} | Linked List M1: {len(self.ll):,} | Queue M2 (ANTRE): {len(self.q_circular):,}".replace(",", "."))
             self._isi_tabel_m1(tree, "array", 0, 100)
             self._log("load_csv", "DATA - load", ms, f"{len(self.data_master):,} baris")
 
-        tk.Button(p, text="MUAT ULANG CSV", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=14, command=aksi_load).pack(anchor="w", pady=4)
-        lbl.config(text=f"Dataset aktif: {len(self.data_master):,} baris dari data/pesanan.csv (menampilkan 100 baris pertama).".replace(",", "."))
+        tk.Button(p, text="RESET / MUAT ULANG DARI CSV", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=14, command=aksi_reset).pack(anchor="w", pady=4)
+        tree = self._create_table(p)
+
+        lbl.config(
+            text=f"Dataset aktif saat ini: {len(self.data_master):,} baris.\n"
+                 f"Array M1: {len(self.arr):,} | Linked List M1: {len(self.ll):,} | Queue M2 (ANTRE): {len(self.q_circular):,} | Tumpukan Undo: {self.ur_mgr.undo_stack.size()}".replace(",", ".")
+        )
         self._isi_tabel_m1(tree, "array", 0, 100)
 
     # =========================================================================
@@ -233,14 +253,15 @@ class AppUI:
         komp = "O(1) akses langsung" if struktur == "array" else "O(n) telusur simpul"
 
         tk.Label(p, text=f"{nama}: Lihat Pesanan ke-i ({komp})", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
-        tk.Label(p, text="Membuka detail pesanan pada indeks ke-i beserta daftar antrean CSV di sekitarnya.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
+        tk.Label(p, text="Membuka detail pesanan pada indeks ke-i beserta daftar antrean terkini.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
         r = tk.Frame(p, bg="white")
         r.pack(fill=tk.X, pady=5)
         tk.Label(r, text="Indeks ke-i:", font=("Helvetica", 9), bg="white").pack(side=tk.LEFT, padx=(0, 6))
         ent = tk.Entry(r, width=12, font=("Helvetica", 9))
         target_obj = self.arr if struktur == "array" else self.ll
-        ent.insert(0, "0")
+        default_idx = min(self.last_view_idx, max(0, len(target_obj) - 1))
+        ent.insert(0, str(default_idx))
         ent.pack(side=tk.LEFT, padx=(0, 8))
 
         lbl = tk.Label(p, text="", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
@@ -258,19 +279,20 @@ class AppUI:
                 messagebox.showerror("Error", f"Indeks harus antara 0 sampai {len(target_obj) - 1}!")
                 return
 
+            self.last_view_idx = idx
             t0 = time.perf_counter()
             item = self.arr.get(idx) if struktur == "array" else self.ll.get(idx)
             ms = (time.perf_counter() - t0) * 1000
 
             self._log(f"{struktur}_lihat", f"M1 - {struktur}", ms, f"idx {idx}")
             lbl.config(
-                text=f"Ditemukan indeks [{idx}] -> OID: {item.oid} | Pelanggan: {item.pelanggan} | Menu: {item.menu} (Rp {item.harga:,})\n"
+                text=f"Ditemukan indeks [{idx:,}] -> OID: {item.oid} | Pelanggan: {item.pelanggan} | Menu: {item.menu} (Rp {item.harga:,})\n"
                      f"Total antrean {nama}: {len(target_obj):,} pesanan. Waktu akses: {ms:.4f} ms.".replace(",", ".")
             )
             self._isi_tabel_m1(tree, struktur, mulai_idx=idx, batas=50)
 
         tk.Button(r, text="LIHAT PESANAN", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=12, command=aksi).pack(side=tk.LEFT)
-        aksi()  # Langsung jalankan agar tabel CSV langsung tampil saat menu dibuka
+        aksi()
 
     def buka_m1_tambah(self, struktur, jenis):
         self._clear_main()
@@ -317,7 +339,7 @@ class AppUI:
             n_skrg = len(target)
             mulai = max(0, pos_fokus - 2) if jenis == "PRIORITAS" else (0 if jenis == "VIP" else max(0, n_skrg - 15))
             lbl.config(
-                text=f"{pesan_tambahan}Total antrean sekarang: {n_skrg:,} pesanan (menampilkan mulai indeks [{mulai:,}]).".replace(",", ".")
+                text=f"{pesan_tambahan}Total data M1: {n_skrg:,} | Antrean M2: {len(self.q_circular):,} | Tumpukan Undo M2: {self.ur_mgr.undo_stack.size()}.".replace(",", ".")
             )
             self._isi_tabel_m1(tree, struktur, mulai_idx=mulai, batas=40)
 
@@ -344,7 +366,7 @@ class AppUI:
             n_awal = len(target)
             pos_masuk = n_awal if jenis == "REGULER" else (n_awal // 2 if jenis == "PRIORITAS" else 0)
 
-            # 1. Tambah ke struktur yang dipilih & ukur waktu
+            # 1. Tambah ke struktur M1 yang dipilih & ukur waktu murni
             t0 = time.perf_counter()
             if jenis == "REGULER":
                 target.tambah_reguler(baru)
@@ -354,7 +376,7 @@ class AppUI:
                 target.tambah_vip(baru)
             ms = (time.perf_counter() - t0) * 1000
 
-            # 2. Tambah juga ke struktur pasangan
+            # 2. Sinkronkan ke struktur pasangan di M1
             pasangan = self.ll if struktur == "array" else self.arr
             if jenis == "REGULER":
                 pasangan.tambah_reguler(baru)
@@ -363,17 +385,19 @@ class AppUI:
             else:
                 pasangan.tambah_vip(baru)
 
-            # 3. Sinkronkan langsung ke data_master M3 & reset cache Binary Search
-            self.data_master = self.arr.data[:self.arr.size]
-            self.cache_oid_terurut = None
+            # 3. Hubungkan ke M2 (Queue & Stack Undo) serta M3 (Sort & Search)
+            self.q_naive.enqueue(baru)
+            self.q_circular.enqueue(baru)
+            self.ur_mgr.catat_aksi("ORDER", [baru], pos_m1=pos_masuk)
+            self._sinkronkan_data_master()
             self.last_added_oid = oid
             self.last_view_idx = pos_masuk
 
             self._log(f"{struktur}_{jenis.lower()}", f"M1 - {struktur}", ms, f"{oid} @ idx {pos_masuk}")
-            refresh_tampilan(pos_masuk, f"BERHASIL: {oid} masuk di indeks [{pos_masuk:,}]. ")
-            messagebox.showinfo(
-                "Berhasil Ditambahkan",
-                f"Pesanan baru {oid} berhasil ditambahkan!\nTotal data sekarang: {len(self.data_master):,} baris.\n\nSilakan cari {oid} di menu M3 Search."
+            refresh_tampilan(
+                pos_masuk,
+                f"BERHASIL: {oid} ({baru.pelanggan}) masuk di indeks [{pos_masuk:,}] ({ms:.4f} ms).\n"
+                f"Terhubung otomatis ke Antrean M2, Stack Undo M2, dan Pencarian M3!\n"
             )
 
         tk.Button(r, text=f"TAMBAH {jenis}", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=12, command=aksi).pack(side=tk.LEFT)
@@ -388,13 +412,13 @@ class AppUI:
         target = self.arr if struktur == "array" else self.ll
 
         tk.Label(p, text=f"{nama}: Hapus Pesanan ke-i", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
-        tk.Label(p, text="Mencabut pesanan pada indeks ke-i dari barisan antrean CSV.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
+        tk.Label(p, text="Mencabut pesanan pada indeks ke-i dari antrean dan mencatatnya ke Stack Undo M2.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
         r = tk.Frame(p, bg="white")
         r.pack(fill=tk.X, pady=5)
         tk.Label(r, text="Indeks yang dihapus:", font=("Helvetica", 9), bg="white").pack(side=tk.LEFT, padx=(0, 6))
         ent = tk.Entry(r, width=10, font=("Helvetica", 9))
-        ent.insert(0, "0")
+        ent.insert(0, str(self.last_view_idx if self.last_view_idx < len(target) else 0))
         ent.pack(side=tk.LEFT, padx=(0, 8))
 
         lbl = tk.Label(p, text=f"Total pesanan {nama}: {len(target):,} baris.", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
@@ -416,18 +440,27 @@ class AppUI:
             terhapus = self.arr.delete(idx) if struktur == "array" else self.ll.delete(idx)
             ms = (time.perf_counter() - t0) * 1000
 
-            self._log(f"{struktur}_hapus", f"M1 - {struktur}", ms, f"idx {idx}")
+            if struktur == "array":
+                self.ll.delete(idx)
+            else:
+                self.arr.delete(idx)
+
+            # Catat ke Undo M2 & sinkronkan ke M3
+            self.ur_mgr.catat_aksi("DELETE_M1", [terhapus], pos_m1=idx)
+            self._sinkronkan_data_master()
+
+            self._log(f"{struktur}_hapus", f"M1 - {struktur}", ms, f"idx {idx} ({terhapus.oid})")
             lbl.config(
-                text=f"Pesanan {terhapus.oid} ({terhapus.pelanggan} - {terhapus.menu}) pada indeks [{idx}] telah dihapus ({ms:.4f} ms).\n"
-                     f"Sisa antrean {nama}: {len(target):,} pesanan.".replace(",", ".")
+                text=f"Pesanan {terhapus.oid} ({terhapus.pelanggan}) pada indeks [{idx:,}] telah dihapus ({ms:.4f} ms).\n"
+                     f"Sisa data M1 & M3: {len(target):,} pesanan | Tumpukan Undo M2: {self.ur_mgr.undo_stack.size()}.".replace(",", ".")
             )
             self._isi_tabel_m1(tree, struktur, mulai_idx=max(0, idx - 2), batas=50)
 
         tk.Button(r, text="HAPUS PESANAN", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=12, command=aksi).pack(side=tk.LEFT)
-        self._isi_tabel_m1(tree, struktur, mulai_idx=0, batas=50)  # Langsung tampilkan isi CSV
+        self._isi_tabel_m1(tree, struktur, mulai_idx=max(0, self.last_view_idx - 2), batas=50)
 
     # =========================================================================
-    # MENU M2: STACK & QUEUE
+    # MENU M2: STACK & QUEUE (DENGAN DATA LANGSUNG MUNCUL & TERHUBUNG KE M1/M3)
     # =========================================================================
     def buka_m2_postfix(self):
         self._clear_main()
@@ -475,52 +508,77 @@ class AppUI:
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
         tk.Label(p, text="Queue: pesanan baru masuk ke belakang", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
+        tk.Label(p, text="Menambah pesanan di ujung belakang kedua antrean sekaligus (O(1)) dan menyinkronkannya ke M1 & M3.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
         r = tk.Frame(p, bg="white")
         r.pack(fill=tk.X, pady=5)
-        ent = tk.Entry(r, width=18)
+        tk.Label(r, text="Nama Pelanggan:", font=("Helvetica", 9), bg="white").pack(side=tk.LEFT, padx=(0, 6))
+        ent = tk.Entry(r, width=18, font=("Helvetica", 9))
         ent.insert(0, f"X{len(self.q_circular) + 1}")
         ent.pack(side=tk.LEFT, padx=(0, 8))
 
-        lbl = tk.Label(p, text=f"Panjang antrean: Naif {len(self.q_naive):,}, Circular {len(self.q_circular):,}.", font=("Helvetica", 9), bg="white")
+        lbl = tk.Label(p, text="", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
         lbl.pack(anchor="w", pady=4)
         tree = self._create_table(p)
+
+        def tampilkan_ekor_antrean(pesan_awalan=""):
+            jml = len(self.q_circular)
+            mulai = max(0, jml - 25)
+            potongan = self.q_circular.get_slice(mulai, 25)
+            lbl.config(
+                text=f"{pesan_awalan}Panjang antrean sekarang: Naif {len(self.q_naive):,}, Circular {jml:,} (menampilkan {len(potongan)} antrean paling belakang).".replace(",", ".")
+            )
+            self._isi_tabel_pesanan_list(tree, potongan, nomor_awal=mulai + 1)
 
         def aksi():
             oid = f"O-{self.next_oid:06d}"
             self.next_oid += 1
-            baru = Pesanan(oid, ent.get().strip())
+            baru = Pesanan(oid, ent.get().strip() or "Pelanggan Baru", masuk="12:45:00", status="ANTRE")
+
             t0 = time.perf_counter()
             self.q_naive.enqueue(baru)
             self.q_circular.enqueue(baru)
-            self.ur_mgr.catat_aksi("ENQUEUE", [baru])
             ms = (time.perf_counter() - t0) * 1000
-            self._log("queue_enqueue", "M2 - queue", ms)
-            lbl.config(text=f"{oid} masuk ke barisan belakang KEDUA antrean.\nPanjang sekarang: Naif {len(self.q_naive):,}, Circular {len(self.q_circular):,}.")
-            for row in tree.get_children():
-                tree.delete(row)
-            tree.insert("", tk.END, values=(1, baru.oid, baru.pelanggan, baru.resto, baru.menu, baru.harga, baru.prioritas, baru.masuk, baru.status))
 
-        tk.Button(r, text="ENQUEUE", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), command=aksi).pack(side=tk.LEFT)
+            # Hubungkan ke M1, M3, dan Undo Stack
+            pos_m1 = len(self.arr)
+            self.arr.append(baru)
+            self.ll.append(baru)
+            self.ur_mgr.catat_aksi("ENQUEUE", [baru], pos_m1=pos_m1)
+            self._sinkronkan_data_master()
+            self.last_added_oid = oid
+            self.last_view_idx = pos_m1
+
+            self._log("queue_enqueue", "M2 - queue", ms, oid)
+            tampilkan_ekor_antrean(f"BERHASIL: {oid} ({baru.pelanggan}) masuk ke barisan paling belakang KEDUA antrean ({ms:.4f} ms).\n")
+
+        tk.Button(r, text="ENQUEUE", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=14, command=aksi).pack(side=tk.LEFT)
+        tampilkan_ekor_antrean()
 
     def buka_m2_dequeue_naive(self):
         self._clear_main()
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
         tk.Label(p, text="Queue naif: ambil dari depan dengan menggeser isi", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
+        tk.Label(p, text="Mengambil indeks 0 lalu menggeser seluruh sisa isi satu petak ke kiri. Biayanya O(n) setiap kali layanan.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
         r = tk.Frame(p, bg="white")
         r.pack(fill=tk.X, pady=5)
-        ent = tk.Entry(r, width=8)
+        tk.Label(r, text="Berapa kali dequeue:", font=("Helvetica", 9), bg="white").pack(side=tk.LEFT, padx=(0, 6))
+        ent = tk.Entry(r, width=8, font=("Helvetica", 9))
         ent.insert(0, "2")
         ent.pack(side=tk.LEFT, padx=(0, 8))
 
-        lbl = tk.Label(p, text=f"Sisa antrean naif: {len(self.q_naive):,}.", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
+        lbl = tk.Label(p, text="", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
         lbl.pack(anchor="w", pady=4)
         tree = self._create_table(p)
 
         def aksi():
-            k = int(ent.get().strip())
+            try:
+                k = max(1, int(ent.get().strip()))
+            except ValueError:
+                k = 1
+
             keluar = []
             geser_sebelum = self.q_naive.total_geseran
             t0 = time.perf_counter()
@@ -528,117 +586,199 @@ class AppUI:
                 x = self.q_naive.dequeue()
                 self.q_circular.dequeue()
                 if x:
+                    x.status = "SELESAI"
+                    x.selesai = "13:00:00"
                     keluar.append(x)
             ms = (time.perf_counter() - t0) * 1000
+
             if keluar:
                 self.ur_mgr.catat_aksi("DEQUEUE", keluar)
+                self._sinkronkan_data_master()
+
             geser = self.q_naive.total_geseran - geser_sebelum
             rata = geser // len(keluar) if keluar else 0
-            lbl.config(text=f"{len(keluar)} pesanan keluar.\nTotal {geser:,} elemen digeser (rata-rata {rata:,} per layanan).\nSisa antrean: {len(self.q_naive):,}.")
-            for row in tree.get_children():
-                tree.delete(row)
-            for i, it in enumerate(keluar, 1):
-                tree.insert("", tk.END, values=(i, it.oid, it.pelanggan, it.resto, it.menu, it.harga, it.prioritas, it.masuk, it.status))
-            self._log("queue_dequeue_naive", "M2 - queue naif", ms)
+            lbl.config(
+                text=f"{len(keluar)} pesanan keluar dari depan antrean naif.\n"
+                     f"Total {geser:,} elemen digeser, rata-rata {rata:,} geseran per dequeue.\n"
+                     f"Sisa antrean naif: {len(self.q_naive):,} pesanan.".replace(",", ".")
+            )
+            self._isi_tabel_pesanan_list(tree, keluar, nomor_awal=1)
+            self._log("queue_dequeue_naive", "M2 - queue naif", ms, f"{len(keluar)} keluar")
 
-        tk.Button(r, text="DEQUEUE", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), command=aksi).pack(side=tk.LEFT)
+        tk.Button(r, text="DEQUEUE", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=14, command=aksi).pack(side=tk.LEFT)
+
+        # Tampilkan 50 antrean terdepan saat menu pertama kali dibuka
+        depan = self.q_naive.get_slice(0, 50)
+        lbl.config(text=f"Antrean siap dilayani (menampilkan {len(depan)} pesanan terdepan dari total {len(self.q_naive):,} antrean):".replace(",", "."))
+        self._isi_tabel_pesanan_list(tree, depan, nomor_awal=1)
 
     def buka_m2_dequeue_circular(self):
         self._clear_main()
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
         tk.Label(p, text="Queue circular: ambil dari depan dengan memajukan penunjuk", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
+        tk.Label(p, text="Hanya penunjuk front yang maju memakai sisa bagi terhadap kapasitas. Isi larik tidak digeser sama sekali (O(1)).", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
         r = tk.Frame(p, bg="white")
         r.pack(fill=tk.X, pady=5)
-        ent = tk.Entry(r, width=8)
+        tk.Label(r, text="Berapa kali dequeue:", font=("Helvetica", 9), bg="white").pack(side=tk.LEFT, padx=(0, 6))
+        ent = tk.Entry(r, width=8, font=("Helvetica", 9))
         ent.insert(0, "2")
         ent.pack(side=tk.LEFT, padx=(0, 8))
 
-        lbl = tk.Label(p, text=f"Sisa antrean circular: {len(self.q_circular):,}.", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
+        lbl = tk.Label(p, text="", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
         lbl.pack(anchor="w", pady=4)
         tree = self._create_table(p)
 
         def aksi():
-            k = int(ent.get().strip())
+            try:
+                k = max(1, int(ent.get().strip()))
+            except ValueError:
+                k = 1
+
             keluar = []
             t0 = time.perf_counter()
             for _ in range(k):
                 x = self.q_circular.dequeue()
                 self.q_naive.dequeue()
                 if x:
+                    x.status = "SELESAI"
+                    x.selesai = "13:00:00"
                     keluar.append(x)
             ms = (time.perf_counter() - t0) * 1000
+
             if keluar:
                 self.ur_mgr.catat_aksi("DEQUEUE", keluar)
-            lbl.config(text=f"{len(keluar)} pesanan keluar dari antrean circular.\nTidak ada elemen yang digeser (front: {self.q_circular.front}, rear: {self.q_circular.rear}).\nSisa antrean: {len(self.q_circular):,}.")
-            for row in tree.get_children():
-                tree.delete(row)
-            for i, it in enumerate(keluar, 1):
-                tree.insert("", tk.END, values=(i, it.oid, it.pelanggan, it.resto, it.menu, it.harga, it.prioritas, it.masuk, it.status))
-            self._log("queue_dequeue_circular", "M2 - queue circular", ms)
+                self._sinkronkan_data_master()
 
-        tk.Button(r, text="DEQUEUE", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), command=aksi).pack(side=tk.LEFT)
+            lbl.config(
+                text=f"{len(keluar)} pesanan keluar dari depan antrean circular.\n"
+                     f"Tidak ada elemen yang digeser; front sekarang {self.q_circular.front}, rear {self.q_circular.rear}, kapasitas {self.q_circular.capacity:,}.\n"
+                     f"Sisa antrean circular: {len(self.q_circular):,} pesanan.".replace(",", ".")
+            )
+            self._isi_tabel_pesanan_list(tree, keluar, nomor_awal=1)
+            self._log("queue_dequeue_circular", "M2 - queue circular", ms, f"{len(keluar)} keluar")
+
+        tk.Button(r, text="DEQUEUE", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=14, command=aksi).pack(side=tk.LEFT)
+
+        # Tampilkan 50 antrean terdepan saat menu pertama kali dibuka
+        depan = self.q_circular.get_slice(0, 50)
+        lbl.config(
+            text=f"Antrean circular siap dilayani (front={self.q_circular.front}, rear={self.q_circular.rear}, total={len(self.q_circular):,} pesanan):".replace(",", ".")
+        )
+        self._isi_tabel_pesanan_list(tree, depan, nomor_awal=1)
 
     def buka_m2_undo(self):
         self._clear_main()
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
         tk.Label(p, text="Stack: batalkan aksi antrean terakhir", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
+        tk.Label(p, text="Mengambil catatan teratas tumpukan undo, lalu menjalankan kebalikannya pada M2, M1, dan M3.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
-        lbl = tk.Label(p, text=f"Panjang antrean: {len(self.q_circular):,}. Undo stack: {self.ur_mgr.undo_stack.size()}.", font=("Helvetica", 9), bg="white")
+        # Tombol UNDO diletakkan di ATAS sebelum tabel (sesuai modul)
+        btn_undo = tk.Button(p, text="UNDO", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=18, pady=3)
+        btn_undo.pack(anchor="w", pady=4)
+
+        lbl = tk.Label(p, text="", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
         lbl.pack(anchor="w", pady=4)
         tree = self._create_table(p)
+
+        def tampilkan_status_awal():
+            jml_undo = self.ur_mgr.undo_stack.size()
+            if jml_undo > 0:
+                tipe_atas, items_atas, _ = self.ur_mgr.undo_stack.peek()
+                lbl.config(
+                    text=f"Siap membatalkan aksi terakhir: {tipe_atas} ({len(items_atas)} pesanan).\n"
+                         f"Panjang antrean sekarang: naif {len(self.q_naive):,}, circular {len(self.q_circular):,}. Tumpukan undo berisi {jml_undo} catatan.".replace(",", ".")
+                )
+                self._isi_tabel_pesanan_list(tree, items_atas, nomor_awal=1)
+            else:
+                depan = self.q_circular.get_slice(0, 30)
+                lbl.config(
+                    text=f"Panjang antrean sekarang: naif {len(self.q_naive):,}, circular {len(self.q_circular):,}. Tumpukan undo: 0 catatan.\n"
+                         f"(Menampilkan 30 pesanan terdepan di antrean. Lakukan Tambah M1 / Enqueue / Dequeue dulu untuk menguji Undo).".replace(",", ".")
+                )
+                self._isi_tabel_pesanan_list(tree, depan, nomor_awal=1)
 
         def aksi():
             t0 = time.perf_counter()
             res = self.ur_mgr.undo_last()
             ms = (time.perf_counter() - t0) * 1000
             if not res:
-                lbl.config(text="Undo stack kosong!")
+                messagebox.showinfo("Undo Kosong", "Tumpukan undo masih kosong! Lakukan Enqueue, Dequeue, atau Tambah/Hapus Pesanan terlebih dahulu.")
                 return
-            tipe, items = res
-            lbl.config(text=f"Undo {tipe} berhasil. Panjang antrean sekarang: {len(self.q_circular):,}.")
-            for row in tree.get_children():
-                tree.delete(row)
-            for i, it in enumerate(items, 1):
-                tree.insert("", tk.END, values=(i, it.oid, it.pelanggan, it.resto, it.menu, it.harga, it.prioritas, it.masuk, it.status))
-            self._log("stack_undo", "M2 - stack", ms)
 
-        tk.Button(p, text="UNDO", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), command=aksi).pack(anchor="w", pady=4)
+            tipe, items = res
+            self._sinkronkan_data_master()
+            lbl.config(
+                text=f"Pembatalan {tipe} berhasil dijalankan ({len(items)} pesanan terdampak).\n"
+                     f"Panjang antrean sekarang: naif {len(self.q_naive):,}, circular {len(self.q_circular):,}. Tumpukan undo tersisa {self.ur_mgr.undo_stack.size()} catatan.".replace(",", ".")
+            )
+            self._isi_tabel_pesanan_list(tree, items, nomor_awal=1)
+            self._log("stack_undo", "M2 - stack", ms, f"undo {tipe}")
+
+        btn_undo.config(command=aksi)
+        tampilkan_status_awal()
 
     def buka_m2_redo(self):
         self._clear_main()
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
         tk.Label(p, text="Stack: kerjakan lagi aksi yang dibatalkan", font=("Helvetica", 11, "bold"), bg="white").pack(anchor="w")
+        tk.Label(p, text="Mengambil catatan teratas tumpukan redo, lalu mengerjakan ulang aksi aslinya. Aksi baru apa pun mengosongkan tumpukan ini.", font=("Helvetica", 8), fg="#666", bg="white").pack(anchor="w", pady=(0, 8))
 
-        lbl = tk.Label(p, text=f"Panjang antrean: {len(self.q_circular):,}. Redo stack: {self.ur_mgr.redo_stack.size()}.", font=("Helvetica", 9), bg="white")
+        # Tombol REDO diletakkan di ATAS sebelum tabel (sesuai modul)
+        btn_redo = tk.Button(p, text="REDO", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), padx=18, pady=3)
+        btn_redo.pack(anchor="w", pady=4)
+
+        lbl = tk.Label(p, text="", font=("Helvetica", 9), bg="white", justify=tk.LEFT)
         lbl.pack(anchor="w", pady=4)
         tree = self._create_table(p)
+
+        def tampilkan_status_awal():
+            jml_redo = self.ur_mgr.redo_stack.size()
+            if jml_redo > 0:
+                tipe_atas, items_atas, _ = self.ur_mgr.redo_stack.peek()
+                lbl.config(
+                    text=f"Siap mengerjakan ulang aksi: {tipe_atas} ({len(items_atas)} pesanan).\n"
+                         f"Panjang antrean sekarang: naif {len(self.q_naive):,}, circular {len(self.q_circular):,}. Tumpukan undo {self.ur_mgr.undo_stack.size()}, redo {jml_redo}.".replace(",", ".")
+                )
+                self._isi_tabel_pesanan_list(tree, items_atas, nomor_awal=1)
+            else:
+                depan = self.q_circular.get_slice(0, 30)
+                lbl.config(
+                    text=f"Panjang antrean sekarang: naif {len(self.q_naive):,}, circular {len(self.q_circular):,}. Tumpukan undo {self.ur_mgr.undo_stack.size()}, redo 0.\n"
+                         f"(Tumpukan redo kosong. Jalankan UNDO terlebih dahulu untuk mengisi tumpukan Redo).".replace(",", ".")
+                )
+                self._isi_tabel_pesanan_list(tree, depan, nomor_awal=1)
 
         def aksi():
             t0 = time.perf_counter()
             res = self.ur_mgr.redo_last()
             ms = (time.perf_counter() - t0) * 1000
             if not res:
-                lbl.config(text="Redo stack kosong!")
+                messagebox.showinfo("Redo Kosong", "Tumpukan redo kosong! Tidak ada aksi yang baru dibatalkan.")
                 return
-            tipe, items = res
-            lbl.config(text=f"Redo {tipe} berhasil. Panjang antrean sekarang: {len(self.q_circular):,}.")
-            for row in tree.get_children():
-                tree.delete(row)
-            for i, it in enumerate(items, 1):
-                tree.insert("", tk.END, values=(i, it.oid, it.pelanggan, it.resto, it.menu, it.harga, it.prioritas, it.masuk, it.status))
-            self._log("stack_redo", "M2 - stack", ms)
 
-        tk.Button(p, text="REDO", bg="#203a43", fg="white", font=("Helvetica", 9, "bold"), command=aksi).pack(anchor="w", pady=4)
+            tipe, items = res
+            self._sinkronkan_data_master()
+            lbl.config(
+                text=f"{tipe} dikerjakan ulang ({len(items)} pesanan).\n"
+                     f"Panjang antrean sekarang: naif {len(self.q_naive):,}, circular {len(self.q_circular):,}. Tumpukan undo {self.ur_mgr.undo_stack.size()}, redo {self.ur_mgr.redo_stack.size()}.".replace(",", ".")
+            )
+            self._isi_tabel_pesanan_list(tree, items, nomor_awal=1)
+            self._log("stack_redo", "M2 - stack", ms, f"redo {tipe}")
+
+        btn_redo.config(command=aksi)
+        tampilkan_status_awal()
 
     # =========================================================================
     # MENU M3: SORT & SEARCH
     # =========================================================================
     def buka_m3_sort(self, jenis):
         self._clear_main()
+        self._sinkronkan_data_master()
+
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
         p.pack(fill=tk.BOTH, expand=True)
 
@@ -660,7 +800,7 @@ class AppUI:
         ent_n = tk.Entry(f_jml, width=14, font=("Helvetica", 9))
         ent_n.insert(0, "10" if jenis == "insertion" else "4000")
         ent_n.pack(anchor="w", pady=2)
-        tk.Label(f_jml, text="diambil dari awal data; coba 1.000 lalu 2.000 lalu 4.000", font=("Helvetica", 7), fg="#888", bg="white").pack(anchor="w")
+        tk.Label(f_jml, text=f"total data aktif: {len(self.data_master):,} baris".replace(",", "."), font=("Helvetica", 7), fg="#888", bg="white").pack(anchor="w")
 
         f_key = tk.Frame(form, bg="white")
         f_key.pack(side=tk.LEFT, padx=(0, 20))
@@ -676,6 +816,7 @@ class AppUI:
         tree = self._create_table(p, cols=("#", "oid", "harga", "selesai", "resto", "menu"))
 
         def aksi_urutkan():
+            self._sinkronkan_data_master()
             try:
                 n_baris = int(ent_n.get().strip())
             except ValueError:
@@ -720,7 +861,6 @@ class AppUI:
 
     def buka_m3_search(self, jenis):
         self._clear_main()
-        # 1. Pastikan data_master selalu mengambil isi terbaru dari Array M1
         self.data_master = self.arr.data[:self.arr.size]
 
         p = tk.Frame(self.main_area, padx=15, pady=10, bg="white")
@@ -743,7 +883,6 @@ class AppUI:
         tk.Label(f_in, text="Nomor pesanan (oid)", font=("Helvetica", 8, "bold"), bg="white").pack(anchor="w")
         ent_oid = tk.Entry(f_in, width=18, font=("Helvetica", 9))
 
-        # 2. Jika ada pesanan baru dari M1, otomatis tampilkan OID tersebut di kotak cari
         oid_terakhir = getattr(self, "last_added_oid", None)
         if oid_terakhir:
             default_oid = oid_terakhir
@@ -753,7 +892,7 @@ class AppUI:
 
         ent_oid.insert(0, default_oid)
         ent_oid.pack(anchor="w", pady=2)
-        tk.Label(f_in, text=f"format O-000001 sampai O-{len(self.data_master):06d}", font=("Helvetica", 7), fg="#888", bg="white").pack(anchor="w")
+        tk.Label(f_in, text=f"format O-000001 sampai O-{self.next_oid - 1:06d} ({len(self.data_master):,} data)".replace(",", "."), font=("Helvetica", 7), fg="#888", bg="white").pack(anchor="w")
 
         lbl_info = tk.Label(p, text="", font=("Helvetica", 9), bg="white", fg="#222", justify=tk.LEFT)
         lbl_info.pack(anchor="w", pady=4)
@@ -768,7 +907,6 @@ class AppUI:
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         def aksi_cari():
-            # Selalu tarik data terbaru dari Array M1 sebelum mencari
             self.data_master = self.arr.data[:self.arr.size]
             target = ent_oid.get().strip().upper()
 
@@ -784,7 +922,6 @@ class AppUI:
                     lbl_info.config(text=f"Pesanan {target} tidak ditemukan.\n{comp:,} perbandingan.".replace(",", "."))
                 self._log("linear_search", "M3 - linear search", ms, target)
             else:
-                # 3. Bangun ulang cache jika belum ada atau jika jumlah data berubah setelah tambah/hapus di M1
                 if self.cache_oid_terurut is None or len(self.cache_oid_terurut) != len(self.data_master):
                     t_build = time.perf_counter()
                     self.cache_oid_terurut, _, _ = merge_sort(self.data_master, "oid")
