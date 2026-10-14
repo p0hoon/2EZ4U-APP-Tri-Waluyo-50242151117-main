@@ -28,7 +28,4 @@ Sesuai dengan ketentuan tugas:
 ├── frontend/
 │   └── ui.py               # Tampilan GUI Desktop Tkinter lengkap terintegrasi
 ├── app.py                  # Main entry-point program
-├── test_m1.py              # Pengujian fungsional & performa M1
-├── test_m2.py              # Pengujian fungsional M2
-├── test_m3.py              # Pengujian verifikasi checklist & stabilitas M3
 └── README.md               # Dokumentasi teknis proyek
