@@ -90,6 +90,12 @@ python app.py          # GUI (Windows: py app.py)
 | 200.000 | ditolak (> 20.000) | 3.226.139 | proteksi aktif | selesai |
 
 *Rasio = kenaikan perbandingan saat n naik 2×.*
+## Grafik Sort
+
+<p align="center">
+  <img src="grafik.svg" width="750" alt="Grafik Pertumbuhan Perbandingan Insertion Sort vs Merge Sort">
+</p>
+
 
 **Kesimpulan**
 1. **Insertion Sort kuadratik:** n dua kali lipat → perbandingan ≈ **4×** (`(2n)²/n² = 4`).
