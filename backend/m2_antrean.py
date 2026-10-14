@@ -261,8 +261,8 @@ class UndoRedoManager:
         return aksi
 
 
-def baca_csv_pesanan(filepath="data/pesanan.csv", limit=20000):
-    """Membaca CSV tanpa dict/set bawaan."""
+def baca_csv_pesanan(filepath="data/pesanan.csv", limit=200000):
+    """Membaca seluruh baris CSV (default 200.000 baris) tanpa dict/set."""
     hasil = []
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -282,11 +282,12 @@ def baca_csv_pesanan(filepath="data/pesanan.csv", limit=20000):
                         menu=k[3] if len(k) > 3 else "roti-bakar",
                         harga=int(k[4]) if len(k) > 4 and k[4].isdigit() else 12000,
                         prioritas=int(k[5]) if len(k) > 5 and k[5].isdigit() else 2,
-                        masuk=k[6] if len(k) > 6 else "00:00:00"
+                        masuk=k[6] if len(k) > 6 else "00:00:00",
+                        selesai=k[7] if len(k) > 7 else "-",
+                        status=k[8] if len(k) > 8 else "ANTRE"
                     )
                     hasil.append(p)
     except FileNotFoundError:
-        # Fallback pembuatan data otomatis jika file CSV belum ditaruh
-        for i in range(1, limit + 1):
-            hasil.append(Pesanan(f"O-{i:06d}", f"Pelanggan-{i}"))
+        for i in range(1, 20001):
+            hasil.append(Pesanan(f"O-{i:06d}", f"Pelanggan-{i}", harga=11000 + (i % 15) * 1000))
     return hasil
