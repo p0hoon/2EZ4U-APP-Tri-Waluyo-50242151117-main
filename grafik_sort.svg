@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="850" height="520" viewBox="0 0 850 520" style="background-color:#ffffff; font-family:-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif;">
+<text x="425.0" y="35" text-anchor="middle" font-size="18" font-weight="bold" fill="#1b2a32">Grafik Perbandingan: Ukuran Data (n) vs Jumlah Perbandingan</text>
+<line x1="90" y1="349.5238095238095" x2="800" y2="349.5238095238095" stroke="#e2e8f0" stroke-dasharray="4" stroke-width="1"/>
+<text x="78" y="353.5238095238095" text-anchor="end" font-size="12" fill="#64748b">1 Juta</text>
+<line x1="90" y1="259.04761904761904" x2="800" y2="259.04761904761904" stroke="#e2e8f0" stroke-dasharray="4" stroke-width="1"/>
+<text x="78" y="263.04761904761904" text-anchor="end" font-size="12" fill="#64748b">2 Juta</text>
+<line x1="90" y1="168.57142857142856" x2="800" y2="168.57142857142856" stroke="#e2e8f0" stroke-dasharray="4" stroke-width="1"/>
+<text x="78" y="172.57142857142856" text-anchor="end" font-size="12" fill="#64748b">3 Juta</text>
+<line x1="90" y1="78.09523809523813" x2="800" y2="78.09523809523813" stroke="#e2e8f0" stroke-dasharray="4" stroke-width="1"/>
+<text x="78" y="82.09523809523813" text-anchor="end" font-size="12" fill="#64748b">4 Juta</text>
+<text x="78" y="444.0" text-anchor="end" font-size="12" fill="#64748b">0</text>
+<line x1="90" y1="440.0" x2="800" y2="440.0" stroke="#334155" stroke-width="2"/>
+<line x1="90" y1="60" x2="90" y2="440.0" stroke="#334155" stroke-width="2"/>
+<line x1="178.75" y1="440.0" x2="178.75" y2="446.0" stroke="#334155" stroke-width="2"/>
+<text x="178.75" y="466.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#334155">500</text>
+<line x1="267.5" y1="440.0" x2="267.5" y2="446.0" stroke="#334155" stroke-width="2"/>
+<text x="267.5" y="466.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#334155">1,000</text>
+<line x1="445.0" y1="440.0" x2="445.0" y2="446.0" stroke="#334155" stroke-width="2"/>
+<text x="445.0" y="466.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#334155">2,000</text>
+<line x1="800.0" y1="440.0" x2="800.0" y2="446.0" stroke="#334155" stroke-width="2"/>
+<text x="800.0" y="466.0" text-anchor="middle" font-size="12" font-weight="bold" fill="#334155">4,000</text>
+<text x="425.0" y="500" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e293b">Ukuran Data Masukan (n)</text>
+<text transform="rotate(-90)" x="-260.0" y="25" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e293b">Jumlah Perbandingan</text>
+<polyline points="178.75,434.44295238095236 267.5,417.71480952380955 445.0,350.84114285714287 800.0,83.3591428571429" fill="none" stroke="#e11d48" stroke-width="3.5" stroke-linecap="round"/>
+<circle cx="178.75" cy="434.44295238095236" r="5.5" fill="#e11d48" stroke="#ffffff" stroke-width="2"/>
+<text x="168.75" y="422.44295238095236" font-size="11" font-weight="bold" fill="#e11d48">61K</text>
+<circle cx="267.5" cy="417.71480952380955" r="5.5" fill="#e11d48" stroke="#ffffff" stroke-width="2"/>
+<text x="257.5" y="405.71480952380955" font-size="11" font-weight="bold" fill="#e11d48">246K</text>
+<circle cx="445.0" cy="350.84114285714287" r="5.5" fill="#e11d48" stroke="#ffffff" stroke-width="2"/>
+<text x="435.0" y="338.84114285714287" font-size="11" font-weight="bold" fill="#e11d48">985K</text>
+<circle cx="800.0" cy="83.3591428571429" r="5.5" fill="#e11d48" stroke="#ffffff" stroke-width="2"/>
+<text x="790.0" y="71.3591428571429" font-size="11" font-weight="bold" fill="#e11d48">3.94M</text>
+<polyline points="178.75,439.6523904761905 267.5,439.2134 445.0,438.24657142857143 800.0,436.1312380952381" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+<circle cx="178.75" cy="439.6523904761905" r="5" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+<circle cx="267.5" cy="439.2134" r="5" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+<circle cx="445.0" cy="438.24657142857143" r="5" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+<circle cx="800.0" cy="436.1312380952381" r="5" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>
+<text x="790.0" y="424.1312380952381" font-size="11" font-weight="bold" fill="#2563eb">42.760 (~42K)</text>
+<rect x="120" y="80" width="260" height="75" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<line x1="135" y1="105" x2="165" y2="105" stroke="#e11d48" stroke-width="3"/>
+<circle cx="150" cy="105" r="4.5" fill="#e11d48"/>
+<text x="175" y="109" font-size="12" font-weight="bold" fill="#1e293b">Insertion Sort [O(n²)]</text>
+<line x1="135" y1="132" x2="165" y2="132" stroke="#2563eb" stroke-width="3"/>
+<circle cx="150" cy="132" r="4.5" fill="#2563eb"/>
+<text x="175" y="136" font-size="12" font-weight="bold" fill="#1e293b">Merge Sort [O(n log n)]</text>
+</svg>
