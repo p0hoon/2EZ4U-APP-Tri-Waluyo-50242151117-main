@@ -24,7 +24,6 @@ Proyek ini membandingkan jumlah operasi dan waktu eksekusi nyata antar struktur 
 ├── data/                # pesanan.csv (200.000 baris), peta.csv
 ├── frontend/ui.py       # GUI Tkinter terintegrasi M1–M3
 ├── app.py               # Entry-point
-├── test_m1.py · test_m2.py · test_m3.py
 └── README.md
 ```
 
