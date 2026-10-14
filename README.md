@@ -34,6 +34,9 @@ Proyek ini membandingkan jumlah operasi dan waktu eksekusi nyata antar struktur 
 ```bash
 python app.py          # GUI (Windows: py app.py)
 ```
+## Screenshot UI
+<img width="1919" height="1010" alt="Screenshot 2026-10-15 044518" src="https://github.com/user-attachments/assets/f4b07b18-0914-46ad-8c0f-e2caec1a495f" />
+
 
 ## Ringkasan Modul
 
